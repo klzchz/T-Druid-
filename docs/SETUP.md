@@ -12,13 +12,23 @@ If you don't have one yet, copy `vault-template/` somewhere on disk (e.g. `~/Doc
 Fill in the `{{...}}` placeholders in `_BOOT.md`, `_HOT.md`, `🧠 Brain.md`, and `Last Session.md` with your own identity, projects, and current focus.
 
 ## 3. Connect Claude Code to the vault (MCP)
-In Obsidian's Local REST API plugin settings, copy the API key and port. Then register it as an MCP server for Claude Code — the exact command depends on your Claude Code version, but it looks like:
 
+**The easy way — one command:**
 ```bash
-claude mcp add obsidian --transport http http://127.0.0.1:<port> --header "Authorization: Bearer <api-key>"
+./connect-obsidian.sh <api-key>
+```
+Get `<api-key>` from Obsidian: Settings → Community plugins → Local REST API → its settings tab shows your key. The script checks the connection and registers the MCP server for you.
+
+**The manual way**, if you'd rather do it yourself (or the plugin uses a non-default port — check its settings tab):
+```bash
+claude mcp add --transport http obsidian http://127.0.0.1:27123 --header "Authorization: Bearer <api-key>"
 ```
 
-Check `claude mcp list` afterward to confirm it's connected. (If your Claude Code version uses a different MCP registration flow, check `claude mcp --help` — the plugin's own docs also cover this.)
+Either way, confirm it worked with:
+```bash
+claude mcp list
+```
+`obsidian` should show up connected. If your Claude Code version's MCP flags differ, run `claude mcp add --help` for the current syntax.
 
 ## 4. Install the global boot file
 ```bash

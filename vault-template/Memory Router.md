@@ -21,7 +21,7 @@ Before writing anything new to the vault, classify it and send it to the right p
 
 - **One note = one responsibility (SRP).** If a note is doing two jobs, split it.
 - **No duplication.** If a fact already lives somewhere, link to it — don't copy it.
-- **No orphans.** Every new note links back to `🧠 Cérebro`/your brain hub, or to a project hub that's connected to it.
+- **No orphans.** Every new note links back to your brain hub (`🧠 Brain`), or to a project hub that's connected to it.
 - **Log the routing decision.** When you file something, say so in the daily log — it's how the system stays auditable.
 
 See also: [[🧠 Brain]]

@@ -20,11 +20,11 @@ This is the *pattern*, not a specific person's deployment. It does **not** inclu
 
 ## Quickstart
 
-1. Read `docs/SETUP.md` — install Claude Code, install the Obsidian Local REST API plugin, copy the vault template somewhere on disk.
-2. Copy `CLAUDE.md.example` to `~/.claude/CLAUDE.md` and fill in the `{{...}}` placeholders.
-3. Copy `skills/druid-sleep/` into `~/.claude/skills/druid-sleep/`.
-4. Copy the scripts in `bin/` to somewhere on your `$PATH` (e.g. `~/.local/bin/`), `chmod +x` them.
-5. Open a Claude Code session anywhere. It should read `_BOOT.md` before doing anything else. Start writing to your vault and watch it get more useful every day.
+```bash
+./install.sh                        # copies skills + scripts + CLAUDE.md
+./connect-obsidian.sh <api-key>     # wires up the Obsidian MCP connection
+```
+Then fill in the `{{...}}` placeholders in `~/.claude/CLAUDE.md` and in your vault's `_BOOT.md`/`_HOT.md`, and open a Claude Code session anywhere. It should read `_BOOT.md` before doing anything else. Full walkthrough with every prerequisite: `docs/SETUP.md`.
 
 ## Philosophy (short version)
 

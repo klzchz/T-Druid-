@@ -20,14 +20,26 @@ T-Druid gives your agent a durable memory using nothing but an Obsidian vault, m
 
 This repo is the **generic, sanitized core** — no personal data, no business logic, no API keys, no names. Clone it, follow `docs/SETUP.md`, and adapt the placeholders to your own life or work.
 
+**Read `docs/SECURITY.md` before your first real session** — a persistent memory means anything you tell it can end up permanently on disk. That's more or less fine for personal use; it's a decision to make on purpose, not by accident, before you use this at work.
+
 ## Quickstart
 
+**macOS / Linux:**
 ```bash
 git clone git@github.com:klzchz/T-Druid-.git
 cd T-Druid-
 ./install.sh                        # copies skills + scripts + CLAUDE.md
 ./connect-obsidian.sh <api-key>     # wires up the Obsidian MCP connection
 ```
+
+**Windows (PowerShell):**
+```powershell
+git clone git@github.com:klzchz/T-Druid-.git
+cd T-Druid-
+.\install.ps1
+.\connect-obsidian.ps1 <api-key>
+```
+`bin/tdruid-config-sync` and `tdruid-config-restore` are bash scripts (they shell out to `git`/`rsync`/`crontab`) and need WSL or Git Bash on Windows — everything else in `bin/` is plain Python and runs natively. See `docs/SETUP.md` for the platform notes.
 
 Then:
 1. Fill in the `{{...}}` placeholders in `~/.claude/CLAUDE.md` and in your vault's `_BOOT.md` / `_HOT.md`.
@@ -44,11 +56,15 @@ Full walkthrough with every prerequisite (Obsidian, its Local REST API plugin, P
 | `vault-template/` | A starter Obsidian vault: `_BOOT.md`, `_HOT.md`, `Memory Router.md`, `🧠 Brain.md`, and empty `Logs/`, `Inbox/`, `Projects/` folders |
 | `skills/druid-sleep/` | The memory-consolidation skill |
 | `skills/skill-forge/` | Meta-skill: turn a repeated pattern into a new reusable skill |
-| `skills/web-recon/` | Headless-browser site/competitor analysis skill |
+| `skills/web-recon/` | Headless-browser site/competitor analysis |
+| `skills/byakugan/` | Market pain-research (Reddit mining → keywords/angles/content topics) |
+| `skills/human-text/` | Style-rule + tool: strip the em-dash, the classic AI-text tell |
 | `bin/` | Core maintenance scripts — see `bin/README.md` |
 | `integrations/` | Optional templates: a Discord approval-gate, a job scanner (structured API + headless browser), an email reporter — see each folder's README |
-| `docs/` | `SETUP.md`, `ARCHITECTURE.md`, `MANNA_PROTOCOL.md`, `MEMORY_ROUTER.md` |
-| `install.sh` / `connect-obsidian.sh` | One-command setup helpers |
+| `docs/` | `SETUP.md`, `SECURITY.md` (read first), `ARCHITECTURE.md`, `MANNA_PROTOCOL.md`, `MEMORY_ROUTER.md` |
+| `install.sh` / `connect-obsidian.sh` | One-command setup helpers (macOS/Linux) |
+| `install.ps1` / `connect-obsidian.ps1` | Same, for Windows/PowerShell |
+| `.env.example` | Every environment variable used anywhere in the repo, in one place |
 
 ## What's NOT in the box (on purpose)
 

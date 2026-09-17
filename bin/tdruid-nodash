@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+"""tdruid-nodash — strip the AI-tell em/en dash from text and write like a human.
+
+Replaces — (U+2014) and – (U+2013) with a normal spaced hyphen " - ".
+Style rule: never ship the em-dash in generated text (posts, landing copy,
+notes) - it's a well-known AI-text tell. Run generated text through this
+before posting anywhere.
+
+Usage:
+  echo "a — b" | tdruid-nodash            # stdin -> stdout
+  tdruid-nodash file.txt                   # print cleaned
+  tdruid-nodash --write a.json b.html ...  # clean files in place (.json kept valid)
+"""
+import sys, re, json
+
+DASHES = re.compile(r"\s*[—–]\s*")
+
+def clean(s: str) -> str:
+    return DASHES.sub(" - ", s)
+
+def clean_json(obj):
+    if isinstance(obj, str):
+        return clean(obj)
+    if isinstance(obj, list):
+        return [clean_json(x) for x in obj]
+    if isinstance(obj, dict):
+        return {k: clean_json(v) for k, v in obj.items()}
+    return obj
+
+def main():
+    args = sys.argv[1:]
+    write = "--write" in args
+    args = [a for a in args if a != "--write"]
+    if not args:
+        sys.stdout.write(clean(sys.stdin.read()))
+        return
+    for f in args:
+        text = open(f, encoding="utf-8").read()
+        if f.endswith(".json"):
+            out = json.dumps(clean_json(json.loads(text)), ensure_ascii=False, indent=2) + "\n"
+        else:
+            out = clean(text)
+        if write:
+            open(f, "w", encoding="utf-8").write(out)
+            print(f"cleaned {f}")
+        else:
+            sys.stdout.write(out)
+
+if __name__ == "__main__":
+    main()

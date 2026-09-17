@@ -5,5 +5,6 @@
 - `tdruid-brain-check` — read-only vault health check: orphans, broken links, empty notes, disk space, and stale/unstamped "current state" claims hardcoded in your scripts (see `../docs/MANNA_PROTOCOL.md`).
 - `tdruid-status` — single source of truth for "current state" facts, so you never have the same fact hardcoded in two scripts that can drift apart.
 - `tdruid-llms` — generates an `llms.txt`-style index of your vault (path + one-line description per note) so any agent/tool can ingest the brain quickly.
+- `tdruid-nodash` — strips the em-dash from text/files (see `../skills/human-text/`).
 
 All of them are dependency-light (stdlib Python / plain bash) and read `$TDRUID_VAULT` for the vault location.

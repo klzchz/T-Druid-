@@ -20,7 +20,7 @@ This is the ONE file that should be enough to remember who you are and what's go
 - {{e.g. "never mention topic X unless I bring it up"}}
 
 ## Where things live
-- Daily logs: `Conversas/YYYY-MM-DD.md`
+- Daily logs: `Logs/YYYY-MM-DD.md`
 - Inbox for anything you're not sure where to file: `Inbox/`
 - Fact-expiry conventions: see `../docs/MANNA_PROTOCOL.md`
 

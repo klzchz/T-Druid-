@@ -56,7 +56,7 @@ FM_SALIENCE = re.compile(r"^salience:\s*(\S+)\s*$", re.MULTILINE)
 EMPTY_BODY_CHARS = 40   # body shorter than this (sans frontmatter/links) = stub
 WEAK_LINKS = 2          # in+out links below this = weak ("what's the point?")
 # Logs/journals chain naturally and are allowed to be lightly linked.
-LOG_PREFIXES = ("Conversas/", "Daily/")  # add your own log-style folders here
+LOG_PREFIXES = ("Logs/", "Daily/")  # add your own log-style folders here
 
 def md_files(root):
     for dp, dns, fns in os.walk(root):

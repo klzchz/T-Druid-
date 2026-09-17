@@ -11,7 +11,7 @@ import os, re, sys, datetime
 
 VAULT = os.environ.get("TDRUID_VAULT", os.path.expanduser("~/Documents/Obsidian Vault"))
 SKIP_DIRS = {".obsidian", ".git", ".trash", "attachments", "_attachments"}
-FULL_EXCLUDE = {"Conversas", "Daily", "Pensieve"}  # noisy/huge → index only, not full dump
+FULL_EXCLUDE = {"Logs", "Daily", "Pensieve"}  # noisy/huge → index only, not full dump
 
 def describe(text):
     """One-line description: frontmatter `description:`, else first heading, else first line."""

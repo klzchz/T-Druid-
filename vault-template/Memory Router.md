@@ -14,7 +14,7 @@ Before writing anything new to the vault, classify it and send it to the right p
 | A specific project | `Projects/{{ProjectName}}/` |
 | You (the human) — preferences, goals, relationships | `Memories/` or wherever you keep personal-context notes |
 | A fleeting idea, unclear where it belongs | `Inbox/` |
-| A daily record of what happened | `Conversas/YYYY-MM-DD.md` (or your own daily-log folder name) |
+| A daily record of what happened | `Logs/YYYY-MM-DD.md` (or your own daily-log folder name) |
 | A durable behavioral correction ("don't do X, do Y") | Directly in the relevant hub note, or in your agent's own long-term memory system if it has one separate from the vault |
 
 ## Rules

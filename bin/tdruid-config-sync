@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# T-Druid CONFIG SYNC — mirror the Claude Code runtime config (~/.claude) AND the
+# T-Druid scripts into the PRIVATE vault so they ride the brain backup.
+# NEVER copies secrets (e.g. ~/.config/tdruid/discord.env stays OUT of git).
+set -euo pipefail
+VAULT="${TDRUID_VAULT:?set TDRUID_VAULT to your Obsidian vault path, e.g. export TDRUID_VAULT=\"$HOME/Documents/Obsidian Vault\"}"
+DEST="$VAULT/T-Druid/System Config"
+mkdir -p "$DEST/bin" "$DEST/skills"
+[ -f "$HOME/.claude/settings.json" ] && cp "$HOME/.claude/settings.json" "$DEST/claude.settings.json"
+[ -f "$HOME/.claude/CLAUDE.md" ]     && cp "$HOME/.claude/CLAUDE.md"     "$DEST/claude.CLAUDE.md"
+# T-Druid scripts (the reflexes themselves)
+for s in "$HOME"/.local/bin/tdruid-*; do
+  case "$s" in *.bak) continue ;; esac
+  [ -f "$s" ] && cp "$s" "$DEST/bin/"
+done
+# Skills (strip node_modules / generated screenshots — reinstallable, not config)
+if [ -d "$HOME/.claude/skills" ]; then
+  rsync -a --delete \
+    --exclude 'node_modules' --exclude 'out' --exclude '__pycache__' \
+    --exclude '*.png' --exclude '*.jpg' \
+    "$HOME/.claude/skills/" "$DEST/skills/"
+fi
+# Crontab (the always-on mechanical senses schedule)
+crontab -l > "$DEST/crontab.txt" 2>/dev/null || true
+echo "config synced -> $DEST"

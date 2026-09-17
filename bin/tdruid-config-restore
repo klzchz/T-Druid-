@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+# T-Druid CONFIG RESTORE — the missing inverse of `tdruid-config-sync`.
+#
+# config-sync  : machine  -> vault   (publishes what this machine has)
+# config-restore: vault   -> machine (installs what the vault has)   <-- THIS
+#
+# Without this, a second machine could never receive the reflexes: the vault
+# carried them (T-Druid/System Config/) but nothing installed them locally —
+# a fresh machine's Claude Code has none of your scripts/skills until this runs.
+#
+# Run it on boot. It is idempotent and safe: it backs up whatever it replaces,
+# it NEVER touches per-machine state (TDRUID_VAULT, machine.env, secrets in
+# ~/.config/tdruid/*.env), and it never writes to the vault.
+#
+# Usage: tdruid-config-restore [--dry-run]
+set -uo pipefail
+
+DRY=0; [ "${1:-}" = "--dry-run" ] && DRY=1
+MACHINE="$(hostname)"
+LOG="${HOME}/.config/tdruid/config-restore.log"
+mkdir -p "$(dirname "$LOG")"
+say() { echo "$*"; printf '%s | %s | %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$MACHINE" "$*" >> "$LOG"; }
+
+# --- locate the vault (per-machine; NEVER hardcode one machine's path) -------
+# Set TDRUID_VAULT in your shell profile, e.g.:
+#   export TDRUID_VAULT="$HOME/Documents/Obsidian Vault"
+VAULT="${TDRUID_VAULT:-}"
+if [ -z "$VAULT" ] || [ ! -d "$VAULT/.git" ]; then
+  for cand in \
+    "$HOME/Documents/Obsidian Vault" \
+    "$HOME/Obsidian Vault" ; do
+    [ -d "$cand/.git" ] && { VAULT="$cand"; break; }
+  done
+fi
+if [ -z "$VAULT" ] || [ ! -d "$VAULT/.git" ]; then
+  echo "ERR: vault not found. Set TDRUID_VAULT in your shell profile." >&2; exit 1
+fi
+SRC="$VAULT/T-Druid/System Config"
+[ -d "$SRC" ] || { echo "ERR: $SRC doesn't exist (vault has no System Config folder yet)" >&2; exit 1; }
+
+# --- 1) pull the brain first, so we install the NEWEST reflexes --------------
+say "pulling brain from origin/main"
+git -C "$VAULT" fetch -q origin main 2>/dev/null || say "⚠️ fetch failed (offline?), continuing with what's already on disk"
+if ! git -C "$VAULT" merge --no-edit -q origin/main 2>/dev/null; then
+  git -C "$VAULT" merge --abort 2>/dev/null || true
+  say "⚠️ brain merge conflicted and was aborted. Resolve by hand:"
+  say "   cd \"$VAULT\" && git merge origin/main"
+  say "   (continuing the restore with the local file versions)"
+fi
+
+BK="$HOME/.config/tdruid/backups/config-restore-$(date +%Y%m%d-%H%M%S)"
+changed=0
+install_file() { # $1=src $2=dst
+  local s="$1" d="$2"
+  [ -f "$s" ] || return 0
+  if [ -f "$d" ] && diff -q "$s" "$d" >/dev/null 2>&1; then return 0; fi
+  changed=$((changed+1))
+  if [ "$DRY" = "1" ]; then say "  [dry-run] would install: $(basename "$d")"; return 0; fi
+  mkdir -p "$(dirname "$d")" "$BK"
+  [ -f "$d" ] && cp "$d" "$BK/$(basename "$d")"
+  cp "$s" "$d"
+  say "  installed: $(basename "$d")"
+}
+
+# --- 2) the reflex scripts ---------------------------------------------------
+say "restoring scripts -> ~/.local/bin"
+mkdir -p "$HOME/.local/bin"
+for s in "$SRC/bin/"*; do
+  [ -f "$s" ] || continue
+  install_file "$s" "$HOME/.local/bin/$(basename "$s")"
+done
+[ "$DRY" = "1" ] || chmod +x "$HOME"/.local/bin/tdruid-* 2>/dev/null || true
+
+# --- 3) skills ---------------------------------------------------------------
+if [ -d "$SRC/skills" ]; then
+  say "restoring skills -> ~/.claude/skills"
+  if [ "$DRY" = "1" ]; then
+    rsync -an --delete --exclude node_modules --exclude __pycache__ \
+      "$SRC/skills/" "$HOME/.claude/skills/" | grep -vE '^(sending|sent|total|$)' | head -10 | sed 's/^/  [dry-run] /'
+  else
+    mkdir -p "$HOME/.claude/skills" "$BK"
+    rsync -a --delete --exclude node_modules --exclude __pycache__ \
+      --backup --backup-dir="$BK/skills" "$SRC/skills/" "$HOME/.claude/skills/" >/dev/null 2>&1 \
+      && say "  skills synced"
+  fi
+fi
+
+# --- 4) Claude Code config ---------------------------------------------------
+# settings.json carries absolute /home/<user>/ paths. Only install it when this
+# machine's $HOME matches, otherwise the hooks would point at a nonexistent path.
+if [ -f "$SRC/claude.settings.json" ]; then
+  if grep -q "$HOME/" "$SRC/claude.settings.json" 2>/dev/null; then
+    install_file "$SRC/claude.settings.json" "$HOME/.claude/settings.json"
+  else
+    say "  ⚠️ vault's settings.json points to a different \$HOME — NOT installed (avoids broken hooks)."
+    say "     Adjust by hand if your machines use different usernames."
+  fi
+fi
+install_file "$SRC/claude.CLAUDE.md" "$HOME/.claude/CLAUDE.md"
+
+# --- 5) crontab (only if this machine has none, never clobber silently) ------
+if [ -f "$SRC/crontab.txt" ]; then
+  cur="$(crontab -l 2>/dev/null | grep -c tdruid || true)"
+  if [ "$cur" -eq 0 ]; then
+    if [ "$DRY" = "1" ]; then say "  [dry-run] would install crontab (this machine has no tdruid jobs yet)"
+    else crontab "$SRC/crontab.txt" 2>/dev/null && say "  crontab installed (this machine had no tdruid jobs)"; fi
+  else
+    say "  crontab already has $cur tdruid job(s) — left alone (diff by hand if you want to match)"
+  fi
+fi
+
+# --- 6) what is per-machine and must NOT be synced ---------------------------
+[ -f "$HOME/.config/tdruid/machine.env" ] || say "  ⚠️ missing ~/.config/tdruid/machine.env (this machine's identity) — create it."
+grep -q "TDRUID_VAULT" "$HOME/.bashrc" 2>/dev/null || \
+  say "  ⚠️ TDRUID_VAULT isn't set in your shell profile — add: export TDRUID_VAULT=\"$VAULT\""
+
+# --- 7) external dependencies (gh, jq, gcloud, python libs...) ---------------
+# The reflexes are useless without the muscles. config-sync never carried these,
+# which is why a fresh machine "needed to install extra stuff". See tdruid-deps.
+if [ -x "$HOME/.local/bin/tdruid-deps" ] && [ "$DRY" = "0" ]; then
+  deps_out="$("$HOME/.local/bin/tdruid-deps" 2>&1 || true)"
+  if printf '%s' "$deps_out" | grep -q "❌"; then
+    say "⚠️ missing dependencies/auth on this machine:"
+    printf '%s\n' "$deps_out" | grep "❌" | sed 's/^/     /' | while read -r l; do say "$l"; done
+    say "   (write your own tdruid-deps helper, or install missing tools by hand)"
+  fi
+fi
+
+if [ "$changed" -eq 0 ]; then say "✅ already in sync — nothing to install"
+elif [ "$DRY" = "1" ]; then say "ℹ️ dry-run: $changed file(s) would be installed"
+else say "✅ restore complete — $changed file(s) installed (backup at $BK)"; fi

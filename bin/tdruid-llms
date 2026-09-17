@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+"""tdruid-llms — generate machine-readable brain indexes (Hermes-style llms.txt).
+
+Writes two files into the vault so any agent/terminal can ingest the brain fast:
+  T-Druid/_llms.txt       curated index: every note + one-line description
+  T-Druid/_llms-full.txt  every note concatenated (excludes noisy log dirs)
+
+Pure brain op (no external deps). Reads the vault like tdruid-recall.
+"""
+import os, re, sys, datetime
+
+VAULT = os.environ.get("TDRUID_VAULT", os.path.expanduser("~/Documents/Obsidian Vault"))
+SKIP_DIRS = {".obsidian", ".git", ".trash", "attachments", "_attachments"}
+FULL_EXCLUDE = {"Conversas", "Daily", "Pensieve"}  # noisy/huge → index only, not full dump
+
+def describe(text):
+    """One-line description: frontmatter `description:`, else first heading, else first line."""
+    fm = re.match(r"^---\n(.*?)\n---\n", text, re.S)
+    if fm:
+        m = re.search(r"^description:\s*(.+)$", fm.group(1), re.M)
+        if m:
+            return m.group(1).strip().strip('"').strip()
+        body = text[fm.end():]
+    else:
+        body = text
+    for line in body.splitlines():
+        s = line.strip()
+        if not s or s.startswith("Conecta:") or s.startswith(">"):
+            continue
+        return re.sub(r"^#+\s*", "", s)[:140]
+    return ""
+
+def main():
+    if not os.path.isdir(VAULT):
+        print(f"vault not found: {VAULT}", file=sys.stderr); sys.exit(1)
+    notes = []
+    for root, dirs, files in os.walk(VAULT):
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
+        for f in sorted(files):
+            if not f.endswith(".md"):
+                continue
+            full = os.path.join(root, f)
+            rel = os.path.relpath(full, VAULT)
+            try:
+                text = open(full, encoding="utf-8", errors="ignore").read()
+            except Exception:
+                continue
+            notes.append((rel, text))
+    notes.sort(key=lambda n: n[0])
+    stamp = datetime.date.today().isoformat()
+
+    # index
+    idx = [f"# T-Druid Brain — llms.txt (curated index)",
+           f"# generated {stamp} · {len(notes)} notes · vault root",
+           "# format: <path> — <description>", ""]
+    for rel, text in notes:
+        idx.append(f"- {rel} — {describe(text)}")
+    out_idx = os.path.join(VAULT, "T-Druid", "_llms.txt")
+    open(out_idx, "w", encoding="utf-8").write("\n".join(idx) + "\n")
+
+    # full concat (exclude noisy dirs)
+    full = [f"# T-Druid Brain — llms-full.txt (full export)",
+            f"# generated {stamp} · excludes {', '.join(sorted(FULL_EXCLUDE))}", ""]
+    n_full = 0
+    for rel, text in notes:
+        top = rel.split(os.sep)
+        if any(part in FULL_EXCLUDE for part in top):
+            continue
+        full.append(f"\n\n===== {rel} =====\n{text.rstrip()}")
+        n_full += 1
+    out_full = os.path.join(VAULT, "T-Druid", "_llms-full.txt")
+    open(out_full, "w", encoding="utf-8").write("\n".join(full) + "\n")
+
+    isz = os.path.getsize(out_idx); fsz = os.path.getsize(out_full)
+    print(f"✅ _llms.txt: {len(notes)} notes, {isz//1024} KB → {out_idx}")
+    print(f"✅ _llms-full.txt: {n_full} notes, {fsz//1024} KB → {out_full}")
+
+if __name__ == "__main__":
+    main()

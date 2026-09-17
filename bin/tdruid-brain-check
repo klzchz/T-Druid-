@@ -1,0 +1,261 @@
+#!/usr/bin/env python3
+"""T-Druid brain check — READ-ONLY fsck/GC/watchdog for the Obsidian vault.
+
+The diagnostic half of Sleep v2 (CC-25). Writes NOTHING to the vault, so it is
+safe to run while another terminal is editing the brain, and cheap enough to run
+in the background / every day.
+
+Philosophy: a note is justified by CONNECTION + MEANING.
+No connection and no meaning = noise → Sleep prunes it. Importance emerges from
+the constellation (weight x links), not from existing. Optimize, don't bloat.
+This scanner SIGNALS candidates; the kill decision is judgment (never blind),
+and NO pruning happens before the vault has a git backup (CC-16).
+
+Checks:
+  1. Nested vaults      — a .obsidian folder inside a subfolder (vault-in-vault).
+  2. Empty/stub notes   — almost no body (the empty notes learning leaves behind).
+  3. Weak connectivity  — in+out links below threshold ("what's the point of it?").
+  4. Orphans            — notes with no outgoing wikilink (don't reach a hub).
+  5. Broken links       — [[X]] that resolves to no note.
+  6. Frontmatter        — missing; salience missing/out of 0-10.
+  7. Duplicates         — same note basename in >1 place (ambiguous links).
+  8. Watchdog/health    — disk free %, vault size, note count, git backup present
+                          (disk free reads the REAL host drive, since the vault
+                          lives under /mnt/c — check this BEFORE suspecting the
+                          LLM/memory when a user reports "everything is broken": bit a real deployment
+                          twice, 2026-08-29 and 2026-09-14, both were disk-full).
+  9. Stale script facts — ~/.local/bin/tdruid-* lines that assert a "current
+                          state" (congelado/no ar/pausado/ativo/...) with no
+                          `as-of DATE` nearby. Extends the Manna Protocol
+                          (until 2026-09-17 only `_HOT.md` carried as-of/exp;
+                          a hardcoded "Project X is paused" string in a report
+                          script silently lied to a teammate for 2+ weeks
+                          after the pause was lifted, precisely because no
+                          expiry mechanism covered scripts at all).
+
+Exit code: 0 if clean, 1 if any ALARM (nested vault, broken link, no git, disk<10%).
+
+Usage: tdruid-brain-check [VAULT_PATH]
+Default vault: $TDRUID_VAULT, or set one below.
+"""
+import os, re, sys, shutil, glob
+from datetime import datetime, timezone
+
+STATE_WORDS = re.compile(
+    r"\b(congelad[oa]|no ar|pausad[oa]|ativ[oa]|desativad[oa]|frozen|paused|"
+    r"live|off[- ]?line|indispon[ií]vel)\b", re.I)
+AS_OF = re.compile(r"as-?of\s*[:=]?\s*(\d{4}-\d{2}-\d{2})", re.I)
+STALE_SCRIPT_DAYS = 14
+
+DEFAULT_VAULT = os.environ.get(
+    "TDRUID_VAULT",
+    os.path.expanduser("~/Documents/Obsidian Vault"),  # adjust or rely on $TDRUID_VAULT
+)
+WIKILINK = re.compile(r"\[\[([^\]|#]+)")
+FM_SALIENCE = re.compile(r"^salience:\s*(\S+)\s*$", re.MULTILINE)
+EMPTY_BODY_CHARS = 40   # body shorter than this (sans frontmatter/links) = stub
+WEAK_LINKS = 2          # in+out links below this = weak ("what's the point?")
+# Logs/journals chain naturally and are allowed to be lightly linked.
+LOG_PREFIXES = ("Conversas/", "Daily/")  # add your own log-style folders here
+
+def md_files(root):
+    for dp, dns, fns in os.walk(root):
+        dns[:] = [d for d in dns if not d.startswith(".")]
+        for f in fns:
+            if f.endswith(".md"):
+                yield os.path.join(dp, f)
+
+def read(p):
+    try:
+        with open(p, encoding="utf-8") as fh:
+            return fh.read()
+    except Exception:
+        return ""
+
+def frontmatter(text):
+    if not text.startswith("---"):
+        return None
+    end = text.find("\n---", 3)
+    return text[3:end] if end != -1 else None
+
+def body_only(text):
+    fm = frontmatter(text)
+    if fm is not None:
+        end = text.find("\n---", 3)
+        text = text[end + 4:] if end != -1 else text
+    # strip wikilinks, headings, list markers, whitespace to gauge real content
+    t = WIKILINK.sub("", text)
+    t = re.sub(r"[#>*\-`\[\]()|:_~]", "", t)
+    return t.strip()
+
+def main():
+    vault = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_VAULT
+    if not os.path.isdir(vault):
+        print(f"❌ vault not found: {vault}", file=sys.stderr)
+        return 2
+
+    alarms, warns = [], []
+    files = list(md_files(vault))
+    rel = {p: os.path.relpath(p, vault).replace(os.sep, "/") for p in files}
+    basenames = {}
+    relpath_to_file = {}
+    for p in files:
+        basenames.setdefault(os.path.splitext(os.path.basename(p))[0], []).append(p)
+        relpath_to_file[os.path.splitext(rel[p])[0]] = p
+
+    def resolve(link):
+        """Return target file path for a wikilink, or None if it resolves to nothing."""
+        l = link.strip().replace("\\", "/")
+        key = os.path.splitext(l)[0]
+        if key in relpath_to_file:
+            return relpath_to_file[key]
+        base = os.path.basename(l)
+        if base in basenames:
+            return basenames[base][0]
+        if l in basenames:
+            return basenames[l][0]
+        return None
+
+    text_by = {p: read(p) for p in files}
+    out_links = {p: WIKILINK.findall(text_by[p]) for p in files}
+
+    # 1. Nested vaults
+    nested = []
+    for dp, dns, _ in os.walk(vault):
+        if ".obsidian" in dns and os.path.abspath(dp) != os.path.abspath(vault):
+            nested.append(os.path.relpath(dp, vault))
+    if nested:
+        alarms.append(f"NESTED VAULT(s) ({len(nested)}): " + ", ".join(nested))
+
+    # inlink counts (connectivity)
+    inlinks = {p: 0 for p in files}
+    broken = []
+    for p in files:
+        seen = set()
+        for l in out_links[p]:
+            t = resolve(l)
+            if t is None:
+                broken.append(f"{rel[p]} -> [[{l.strip()}]]")
+            elif t != p and t not in seen:
+                inlinks[t] += 1
+                seen.add(t)
+    if broken:
+        alarms.append(f"BROKEN links ({len(broken)})")
+
+    # connectivity-derived signals
+    empty, weak, orphans = [], [], []
+    no_fm, bad_sal = [], []
+    for p in files:
+        r = rel[p]
+        is_log = r.startswith(LOG_PREFIXES)
+        out_resolved = len({resolve(l) for l in out_links[p] if resolve(l)})
+        total = inlinks[p] + out_resolved
+        body = body_only(text_by[p])
+        if len(body) < EMPTY_BODY_CHARS and not is_log:
+            empty.append(f"{r} ({len(body)} chars)")
+        if not out_links[p]:
+            orphans.append(r)
+        if total < WEAK_LINKS and not is_log:
+            weak.append(f"{r} (in={inlinks[p]} out={out_resolved})")
+        fm = frontmatter(text_by[p])
+        if fm is None:
+            no_fm.append(r)
+        else:
+            m = FM_SALIENCE.search(fm)
+            if m:
+                try:
+                    if not (0 <= float(m.group(1)) <= 10):
+                        bad_sal.append(f"{r} (salience={m.group(1)})")
+                except ValueError:
+                    bad_sal.append(f"{r} (salience={m.group(1)})")
+    if empty:
+        warns.append(f"EMPTY/stub notes ({len(empty)}) — prune candidates")
+    if weak:
+        warns.append(f"WEAK connectivity, in+out<{WEAK_LINKS} ({len(weak)}) — connect or prune")
+    if orphans:
+        warns.append(f"ORPHANS, no outgoing link ({len(orphans)})")
+    if bad_sal:
+        warns.append(f"SALIENCE out of 0-10 ({len(bad_sal)})")
+    if no_fm:
+        warns.append(f"NO frontmatter ({len(no_fm)})")
+
+    # 7. Duplicates
+    dups = {b: ps for b, ps in basenames.items() if len(ps) > 1}
+    if dups:
+        warns.append(f"DUPLICATE basenames ({len(dups)})")
+
+    # 8. Watchdog / health
+    du = shutil.disk_usage(vault)
+    free_pct = du.free / du.total * 100
+    git_here = os.path.isdir(os.path.join(vault, ".git"))
+    if free_pct < 10:
+        alarms.append(f"DISK low: {free_pct:.0f}% free")
+    if not git_here:
+        alarms.append("NO git backup in vault (brain is MORTAL — CC-16; no pruning until fixed)")
+
+    # 9. Stale/unstamped state-claims baked into tdruid-* scripts (Manna
+    # Protocol extended past _HOT.md — see docstring, incident 2026-09-17).
+    script_hits = []
+    today = datetime.now(timezone.utc).date()
+    for sp in sorted(glob.glob(os.path.expanduser("~/.local/bin/tdruid-*"))):
+        if sp.endswith(".bak") or not os.path.isfile(sp):
+            continue
+        try:
+            lines = open(sp, encoding="utf-8", errors="ignore").read().splitlines()
+        except Exception:
+            continue
+        name = os.path.basename(sp)
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped.startswith("#") or stripped.startswith('"""') or stripped.startswith("'''"):
+                continue  # comments/docstrings explain code, they don't assert live status
+            if not STATE_WORDS.search(line) or ('"' not in line and "'" not in line):
+                continue
+            window = "\n".join(lines[max(0, i - 2):i + 3])
+            m = AS_OF.search(window)
+            if not m:
+                script_hits.append(f"{name}:{i+1} no as-of tag: {line.strip()[:80]}")
+                continue
+            try:
+                d = datetime.strptime(m.group(1), "%Y-%m-%d").date()
+                if (today - d).days > STALE_SCRIPT_DAYS:
+                    script_hits.append(f"{name}:{i+1} as-of {d} is {(today-d).days}d old: {line.strip()[:70]}")
+            except ValueError:
+                script_hits.append(f"{name}:{i+1} malformed as-of: {line.strip()[:80]}")
+    if script_hits:
+        warns.append(f"STALE-PRONE script facts, no/old as-of ({len(script_hits)}) — reconfirm or tag `as-of YYYY-MM-DD`")
+
+    # ---- report ----
+    print("🧠 T-Druid brain check (read-only)")
+    print(f"   vault: {vault}")
+    print(f"   notes: {len(files)} · disk free: {free_pct:.0f}% · git backup: {'yes' if git_here else 'NO'}")
+    print()
+    if alarms:
+        print("🔴 ALARMS")
+        for a in alarms: print(f"   - {a}")
+    if warns:
+        print("🟡 WARNINGS")
+        for w in warns: print(f"   - {w}")
+    if not alarms and not warns:
+        print("✅ clean — 0 issues")
+
+    def dump(title, items, limit=20):
+        if not items: return
+        print(f"\n--- {title} ---")
+        for x in items[:limit]: print(f"   {x}")
+        if len(items) > limit: print(f"   ... +{len(items)-limit} more")
+
+    dump("nested vaults", nested)
+    dump("empty/stub (prune candidates)", empty)
+    dump("weak connectivity (connect or prune)", weak)
+    dump("broken links", broken)
+    dump("orphans (no outgoing link)", orphans)
+    dump("duplicate basenames", [f"{b}: {len(ps)}x" for b, ps in dups.items()])
+    dump("salience out of range", bad_sal)
+    dump("no frontmatter", no_fm)
+    dump("stale-prone script facts", script_hits)
+
+    return 1 if alarms else 0
+
+if __name__ == "__main__":
+    sys.exit(main())

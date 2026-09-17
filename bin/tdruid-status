@@ -1,0 +1,68 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Single-source of truth for "current state" facts that would otherwise get
+duplicated as a loose string across several scripts — the exact bug this
+pattern exists to prevent: a hardcoded "Project X is paused" string baked
+into two different scripts, one got fixed when the project un-paused, the
+other kept lying for weeks because nothing forced a reconfirm.
+
+Stores facts in ~/.config/tdruid/status.json: {"thing": {"state": "...",
+"as_of": "YYYY-MM-DD"}}. Any script that needs to assert "X is currently
+Y" should READ from here instead of writing the sentence into itself.
+
+Usage:
+  tdruid-status get <thing>            # prints "state (as-of DATE)"
+  tdruid-status set <thing> <state>    # updates and stamps today's date
+  tdruid-status list                   # everything
+"""
+import json
+import os
+import sys
+from datetime import datetime, timezone
+
+PATH = os.path.expanduser("~/.config/tdruid/status.json")
+
+# Example seed data — replace with facts that matter to you, or just let the
+# file start empty and populate it via `tdruid-status set`.
+DEFAULT = {
+    "example-project": {"state": "live, no known issues", "as_of": "2026-01-01"},
+}
+
+
+def load():
+    if not os.path.exists(PATH):
+        return dict(DEFAULT)
+    try:
+        return json.load(open(PATH, encoding="utf-8"))
+    except Exception:
+        return dict(DEFAULT)
+
+
+def save(d):
+    os.makedirs(os.path.dirname(PATH), exist_ok=True)
+    json.dump(d, open(PATH, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+
+
+def main():
+    if len(sys.argv) < 2:
+        sys.exit(__doc__)
+    cmd = sys.argv[1]
+    d = load()
+    if cmd == "get":
+        p = d.get(sys.argv[2], {})
+        print(f"{p.get('state', 'N/A')} (as-of {p.get('as_of', 'N/A')})" if p else "N/A")
+    elif cmd == "set":
+        thing, state = sys.argv[2], sys.argv[3]
+        d[thing] = {"state": state,
+                    "as_of": datetime.now(timezone.utc).strftime("%Y-%m-%d")}
+        save(d)
+        print(f"{thing}: {state} (as-of {d[thing]['as_of']})")
+    elif cmd == "list":
+        for k, v in d.items():
+            print(f"{k}: {v.get('state')} (as-of {v.get('as_of')})")
+    else:
+        sys.exit("unknown command")
+
+
+if __name__ == "__main__":
+    main()

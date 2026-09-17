@@ -5,7 +5,7 @@ Read `docs/SECURITY.md` before you put any real work information into a vault yo
 ## 1. Prerequisites
 - [Claude Code](https://claude.com/claude-code) installed and working (`claude --version` should print something).
 - [Obsidian](https://obsidian.md) installed.
-- Python 3.9+ and Node.js if you want the integration templates (job scanner, web-recon) — optional, skip if you just want the memory core.
+- Python 3.9+ and Node.js if you want the extra skills/templates (job scanner, `sharingan`, `byakugan`) — optional, skip if you just want the memory core.
 
 ## 2. Get an Obsidian vault ready
 If you don't have a vault yet: copy `vault-template/` somewhere on disk, e.g.

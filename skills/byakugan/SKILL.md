@@ -1,6 +1,6 @@
 ---
 name: byakugan
-description: Market pain-research for any niche or product idea - mine REAL user pain, demand, and the exact words the market uses, from Reddit (global, EN+PT), then turn it into ready-to-execute deliverables (keywords, marketing angles, content topics, distribution targets). Sibling of `web-recon` (that studies competitors; this reads the market). Use when validating a niche/product, finding pain points, mining keywords, or finding where to distribute. Triggers - "byakugan", "market research", "mine the pain", "what does the market complain about", "find the pain points", "keywords for <niche>".
+description: Market pain-research for any niche or product idea - mine REAL user pain, demand, and the exact words the market uses, from Reddit (global, EN+PT), then turn it into ready-to-execute deliverables (keywords, marketing angles, content topics, distribution targets). Sibling of `sharingan` (that studies competitors; this reads the market). Use when validating a niche/product, finding pain points, mining keywords, or finding where to distribute. Triggers - "byakugan", "market research", "mine the pain", "what does the market complain about", "find the pain points", "keywords for <niche>".
 ---
 
 # Byakugan - 360-degree market pain research
@@ -8,7 +8,7 @@ description: Market pain-research for any niche or product idea - mine REAL user
 Premise: demand hides in complaints. Mine where people vent (Reddit worldwide, or your own local equivalent - a country-specific complaints site, a forum, whatever your market actually uses), then produce things ready to act on.
 
 ## Tooling
-- **Reddit** blocks anonymous JSON/API access (HTTP 403), so `byakugan.py` renders the search UI in a real headless browser (Playwright) instead - the same approach as the `web-recon` skill.
+- **Reddit** blocks anonymous JSON/API access (HTTP 403), so `byakugan.py` renders the search UI in a real headless browser (Playwright) instead - the same approach as the `sharingan` skill.
 - Deps: `pip install playwright && playwright install chromium`.
 - Extending to another complaint source (e.g. a local review/complaints site for your market) means adding a similarly-scoped fetch function to `byakugan.py` - see its existing Reddit function as the template. Any site behind aggressive anti-bot (Cloudflare enterprise, etc.) may need a stealth plugin or a fallback to search-engine dorking (`site:example.com <term>`).
 
@@ -36,4 +36,4 @@ Premise: demand hides in complaints. Mine where people vent (Reddit worldwide, o
 - Any credentials (e.g. a Reddit API app if you switch to PRAW for cheaper/more reliable access) belong in an env file, chmod 600, never in chat or the vault.
 
 ## Invoke
-Tell your agent "byakugan on `<niche>`" or run `python3 byakugan.py "<niche>" --locale both`. Sibling skill: `web-recon` (competitor/site analysis).
+Tell your agent "byakugan on `<niche>`" or run `python3 byakugan.py "<niche>" --locale both`. Sibling skill: `sharingan` (competitor/site analysis).

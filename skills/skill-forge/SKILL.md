@@ -19,7 +19,7 @@ The agent should get more capable the more it runs, by **creating skills from ex
 4. **Self-improve:** when the skill is reused and something is clunky or wrong, EDIT the SKILL.md / helper — don't work around it. Note what changed.
 
 ## Examples already forged (in this repo)
-- `web-recon` — generic competitor/site recon via Playwright.
+- `sharingan` — generic competitor/site recon via Playwright.
 - `tdruid-llms` (`bin/tdruid-llms`) — vault → llms.txt index.
 
 ## Guardrail

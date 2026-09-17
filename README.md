@@ -56,7 +56,7 @@ Full walkthrough with every prerequisite (Obsidian, its Local REST API plugin, P
 | `vault-template/` | A starter Obsidian vault: `_BOOT.md`, `_HOT.md`, `Memory Router.md`, `🧠 Brain.md`, and empty `Logs/`, `Inbox/`, `Projects/` folders |
 | `skills/druid-sleep/` | The memory-consolidation skill |
 | `skills/skill-forge/` | Meta-skill: turn a repeated pattern into a new reusable skill |
-| `skills/web-recon/` | Headless-browser site/competitor analysis |
+| `skills/sharingan/` | Headless-browser site/competitor analysis |
 | `skills/byakugan/` | Market pain-research (Reddit mining → keywords/angles/content topics) |
 | `skills/human-text/` | Style-rule + tool: strip the em-dash, the classic AI-text tell |
 | `bin/` | Core maintenance scripts — see `bin/README.md` |

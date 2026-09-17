@@ -1,11 +1,11 @@
 ---
-name: web-recon
-description: Open any website headlessly (Playwright/Chromium), screenshot it, and extract its UX, features, pricing, and tech signals into a structured report. Use when asked to study/analyze a competitor's or reference site, e.g. "recon on <url>", "what does <site> do", "analyze this site's pricing/onboarding".
+name: sharingan
+description: Open any website headlessly (Playwright/Chromium), screenshot it, and extract its UX, features, pricing, and tech signals into a structured report. Sibling of `byakugan` (that reads the market's pain; this studies a specific site). Use when asked to study/analyze a competitor's or reference site, e.g. "sharingan on <url>", "what does <site> do", "analyze this site's pricing/onboarding".
 ---
 
-# 🔍 Web Recon — competitor/reference site analysis
+# 🔴 Sharingan — competitor/reference site recon
 
-Study *techniques*, not the body. **Copy ideas, features, and UX patterns (legal) — never source code, assets, brand, or protected content.** Never help build anything illegal a reference site might be doing (e.g. piracy) — flag it as a risk instead.
+The Sharingan copies *techniques*, not the body. **Copy ideas, features, and UX patterns (legal) — never source code, assets, brand, or protected content.** Never help build anything illegal a reference site might be doing (e.g. piracy) — flag it as a risk instead.
 
 ## Tooling
 - Headless Chromium via Playwright. Install once: `npm install` in this skill's folder (installs `playwright`), then `npx playwright install chromium`.
@@ -26,4 +26,4 @@ Study *techniques*, not the body. **Copy ideas, features, and UX patterns (legal
 - Light recon only; don't hammer a site, respect its `robots.txt`/ToS.
 
 ## Invoke
-Tell your agent "recon on `<url>`" or "web-recon `<url>` — focus on `<area>`".
+Tell your agent "sharingan on `<url>`" or "sharingan `<url>` — focus on `<area>`". Sibling skill: `byakugan` (market pain research).
